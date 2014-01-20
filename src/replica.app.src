@@ -1,0 +1,17 @@
+{application, replica,
+ [
+  {description, ""},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  logger,
+                  psql
+                 ]},
+  {mod, {replica, []}},
+  {env, [
+    {weight, 10},
+    {cron_timeout, 10}
+  ]}
+ ]}.
