@@ -354,8 +354,14 @@ add_terminal1(Terminal, #state{ets = ETS}) ->
 
 handle_issue(_Reason, #state{status = issue}) ->
   issue;
-handle_issue(Reason, #state{connected = 0}) ->
-  warning("issue while delivering: ~w", [Reason]),
+handle_issue(Reason, #state{
+                        server_id = ServerId,
+                        server_host = ServerHost,
+                        server_port = ServerPort,
+                        server_protocol = ServerProto,
+                        connected = 0}) ->
+  warning("issue while delivering to ~w: ~w", [{ServerId, ServerHost, ServerPort, ServerProto},
+                                               Reason]),
   issue;
 handle_issue(Reason, #state{
 				server_id = ServerId,
@@ -363,5 +369,5 @@ handle_issue(Reason, #state{
 				server_port = ServerPort,
 				server_protocol = ServerProto,
 				status = Status}) ->
-  notice("server ~w issue ~w", [{ServerId, ServerHost, ServerPort, ServerProto},Reason]),
+  info("server ~w issue ~w", [{ServerId, ServerHost, ServerPort, ServerProto},Reason]),
   Status.
