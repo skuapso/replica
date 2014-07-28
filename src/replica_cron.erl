@@ -69,7 +69,11 @@ ready(timeout, Timeout) ->
               Proto = proplists:get_value(protocol, X),
               TerminalUIN = proplists:get_value(terminal_uin, X),
               TerminalProto = proplists:get_value(terminal_protocol, X),
-              hooks:run({replica, new_data}, [Recipient, ServerID, Proto, TerminalProto, TerminalUIN])
+              hooks:run({replica, new_data}, [
+                                              Recipient,
+                                              ServerID,
+                                              Proto,
+                                              {TerminalProto, TerminalUIN}])
           end, Data)
     end, hooks:run(get, [replica, undelivered, []])),
   {next_state, ready, Timeout, Timeout}.

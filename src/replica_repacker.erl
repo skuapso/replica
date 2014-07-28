@@ -3,10 +3,8 @@
 -behaviour(gen_server).
 
 %% API
--export([
-  start_link/5,
-  repack/7
-  ]).
+-export([start_link/4]).
+-export([repack/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -30,14 +28,14 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(TerminalProto, TerminalUIN, ServerInfo, ServerProto, _Timeout) ->
-  gen_server:start_link(?MODULE, {TerminalProto, TerminalUIN, ServerInfo, ServerProto}, []).
+start_link(Terminal, ServerInfo, ServerProto, _Timeout) ->
+  gen_server:start_link(?MODULE, {Terminal, ServerInfo, ServerProto}, []).
 
-repack(_Pid, _Module, _UIN, Type, _RawData, _Packet, _Timeout)
+repack(_Pid, #{type := Type}, _Timeout)
     when ((Type =:= broken) or (Type =:= authorization) or (Type =:= unknown)) ->
   ok;
-repack(Pid, Module, UIN, Type, RawData, Packet, Timeout) ->
-  gen_server:call(Pid, {repack, Module, UIN, Type, RawData, Packet}, Timeout).
+repack(Pid, Packet, Timeout) ->
+  gen_server:call(Pid, {repack, Packet}, Timeout).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -54,10 +52,10 @@ repack(Pid, Module, UIN, Type, RawData, Packet, Timeout) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init({TProto, UIN, ServerInfo, SProto}) ->
+init({{TProto, UIN} = Terminal, ServerInfo, SProto}) ->
   trace("starting"),
   process_flag(trap_exit, true),
-  hooks:run(get, [terminal, id, {TProto, UIN}]),
+  hooks:run(get, [terminal, id, Terminal]),
   {ok, #state{
       terminal_protocol = TProto,
       terminal_uin = UIN,
@@ -78,26 +76,24 @@ init({TProto, UIN, ServerInfo, SProto}) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({repack, TProto, UIN, _Type, RawData, _Packet}, _From,
+handle_call({repack, #{raw := RawData}},
+            _From,
             #state{
-        terminal_protocol = TProto,
-        terminal_uin = UIN,
-        server_protocol = SProto,
-        server_info = SInfo,
-        filter = Filter} = State)
-    when ((TProto =:= SProto) and
-      (Filter =:= []))
-    ->
+               terminal_protocol = TProto,
+               server_protocol = SProto,
+               server_info = SInfo,
+               filter = Filter} = State)
+  when ((TProto =:= SProto) and
+        (Filter =:= []))
+       ->
   {reply, {ok, {SInfo, SProto, RawData}}, State};
-handle_call({repack, TProto, UIN, Type, _RawData, Packet}, _From,
-           #state{
-        terminal_protocol = TProto,
-        terminal_uin = UIN,
-        server_protocol = SProto,
-        server_info = SInfo,
-        filter = Filter} = State)
-    ->
-  Reply = SProto:pack(Type, filter(Packet, Filter)),
+handle_call({repack, Packet},
+            _From,
+            #state{
+               server_protocol = SProto,
+               server_info = SInfo,
+               filter = Filter} = State) ->
+  {ok, Reply} = SProto:pack(filter(Packet, Filter)),
   {reply, {ok, {SInfo, SProto, Reply}}, State};
 handle_call(Request, From, State) ->
   warning("~w:unhandled call ~w", [From, Request]),
