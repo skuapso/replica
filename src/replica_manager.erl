@@ -78,7 +78,7 @@ start_link(Handler, ServerID, ServerProto) ->
 init({Recipient, ServerID, ServerProto}) ->
   trace("init: recipient ~w, server id ~w, server protocol ~w", [Recipient, ServerID, ServerProto]),
   process_flag(trap_exit, true),
-  [{Recipient, [Params]} | _] = hooks:run({Recipient, get}, [replica, servers, [{id, ServerID}]]),
+  [{Recipient, [Params]} | _] = hooks:run({Recipient, get}, [replica, server_info, ServerID]),
   debug("server options ~w", [Params]),
   ServerHost = binary_to_list(proplists:get_value(hostname, Params)),
   ServerPort = proplists:get_value(port, Params),
