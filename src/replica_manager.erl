@@ -232,8 +232,7 @@ handle_cast(check_undelivered, #state{
                   hooks:run({replica, new_data}, [Recipient,
                                                   ServerID,
                                                   Proto,
-                                                  TerminalProto,
-                                                  TerminalUIN])
+                                                  {TerminalProto, TerminalUIN}])
               end, Data)
         end, hooks:run({Recipient, get}, [replica, undelivered, ServerID]))
   end,
