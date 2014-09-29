@@ -285,7 +285,7 @@ auth(Data, #state{socket = Socket} = State) ->
   inet:setopts(Socket, [{active, false}]),
   debug("send auth data ~w", [Data]),
   ok = gen_tcp:send(Socket, Data),
-  {ok, Answer} = gen_tcp:recv(Socket, 0),
+  {ok, Answer} = gen_tcp:recv(Socket, 0, ?TIMEOUT),
   debug("auth recv: ~w", [Answer]),
   inet:setopts(Socket, [{active, true}]),
   new_data(self()),
