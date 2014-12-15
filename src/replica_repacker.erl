@@ -25,7 +25,7 @@
 %% @doc
 %% Starts the server
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @spec start_link() -> {ok, Pid} | ignore | {'_err'or, Error}
 %% @end
 %%--------------------------------------------------------------------
 start_link(Terminal, ServerInfo, ServerProto, _Timeout) ->
@@ -53,7 +53,7 @@ repack(Pid, Packet, Timeout) ->
 %% @end
 %%--------------------------------------------------------------------
 init({{TProto, UIN} = Terminal, ServerInfo, SProto}) ->
-  trace("starting"),
+  '_trace'("starting"),
   process_flag(trap_exit, true),
   hooks:run(get, [terminal, id, Terminal]),
   {ok, #state{
@@ -96,7 +96,7 @@ handle_call({repack, Packet},
   {ok, Reply} = SProto:pack(filter(Packet, Filter)),
   {reply, {ok, {SInfo, SProto, Reply}}, State};
 handle_call(Request, From, State) ->
-  warning("~w:unhandled call ~w", [From, Request]),
+  '_warning'("~w:unhandled call ~w", [From, Request]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -110,7 +110,7 @@ handle_call(Request, From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast(Msg, State) ->
-  warning("unhandled cast ~w", [Msg]),
+  '_warning'("unhandled cast ~w", [Msg]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -124,7 +124,7 @@ handle_cast(Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(Info, State) ->
-  warning("unhandled info ~w", [Info]),
+  '_warning'("unhandled '_info' ~w", [Info]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -139,7 +139,7 @@ handle_info(Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-  trace("terminating"),
+  '_trace'("terminating"),
   ok.
 
 %%--------------------------------------------------------------------

@@ -30,7 +30,7 @@ stop(_) ->
 
 get_servers(_Pid, Terminal, Timeout) ->
   Servers = hooks:run(get, [?MODULE, servers, Terminal]),
-  debug("servers: ~w", [Servers]),
+  '_debug'("servers: ~w", [Servers]),
   Pids = lists:flatten(lists:map(
         fun({ReplicaClient, ServerList}) ->
             lists:map(
@@ -51,7 +51,7 @@ repack_packet(_Pid, Terminal, Packet, Timeout) ->
     undefined -> [];
     List -> List
   end,
-  debug("servers: ~w", [Pids]),
+  '_debug'("servers: ~w", [Pids]),
   lists:map(
     fun({ReplicaClient, RPid}) ->
         {ok, {ServerID,
@@ -67,19 +67,19 @@ new_data(Pid, Recipient, ServerID, ServerProto, Terminal, Timeout) when is_binar
 new_data(Pid, Recipient, ServerID, ServerProto, {Module, UIN}, Timeout) when is_binary(Module) ->
   new_data(Pid, Recipient, ServerID, ServerProto, {binary_to_atom(Module, latin1), UIN}, Timeout);
 new_data(_Pid, Recipient, ServerID, ServerProto, {Module, _} = Terminal, _Timeout) ->
-  trace("new data for ~w:~w", [ServerID, Module]),
+  '_trace'("new data for ~w:~w", [ServerID, Module]),
   ManagerPid = case supervisor:start_child(?MODULE,manager_spec(Recipient, ServerID, ServerProto)) of
     {ok, StartedPid} -> StartedPid;
     {error, {already_started, FoundPid}} -> FoundPid
   end,
-  debug("pid of manager is ~w", [ManagerPid]),
+  '_debug'("pid of manager is ~w", [ManagerPid]),
   replica_manager:new_data(ManagerPid, Terminal).
 
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the supervisor
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @spec start_link() -> {ok, Pid} | ignore | {'_err'or, Error}
 %% @end
 %%--------------------------------------------------------------------
 start_link(Args) ->
@@ -99,11 +99,11 @@ start_link(Args) ->
 %%
 %% @spec init(Args) -> {ok, {SupFlags, [ChildSpec]}} |
 %%                     ignore |
-%%                     {error, Reason}
+%%                     {'_err'or, Reason}
 %% @end
 %%--------------------------------------------------------------------
 init(Args) ->
-  trace("starting"),
+  '_trace'("starting"),
   Weight = misc:get_env(?MODULE, weight, Args),
   CronTimeout = misc:get_env(?MODULE, cron_timeout, Args) * 1000,
   hooks:install(terminal_uin, Weight, {?MODULE, get_servers}),

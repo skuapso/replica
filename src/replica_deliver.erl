@@ -42,7 +42,7 @@
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @spec start_link() -> {ok, Pid} | ignore | {'_err'or, Error}
 %% @end
 %%--------------------------------------------------------------------
 start_link(Recipient, ServerID, ServerProto, ServerHost, ServerPort, MaxPoints) ->
@@ -71,7 +71,7 @@ stop(Pid) ->
 %% @end
 %%--------------------------------------------------------------------
 init({Manager, Recipient, ServerID, ServerProto, ServerHost, ServerPort, MaxPoints}) ->
-  trace("init"),
+  '_trace'("init"),
   connect(),
   {ok, disconnected, #state{
       recipient = Recipient,
@@ -114,7 +114,7 @@ connected({send, [], <<>>}, #state{manager = Manager} = State) ->
   replica_manager:no_data(Manager),
   {next_state, connected, State, ?TIMEOUT};
 connected({send, DataID, Data}, #state{socket = Socket} = S) ->
-  debug("sending ~w", [Data]),
+  '_debug'("sending ~w", [Data]),
   gen_tcp:send(Socket, Data),
   Timer = gen_fsm:send_event_after(?TIMEOUT, timeout),
   {next_state, waiting_answer, S#state{data_id = DataID, timer = Timer}, ?TIMEOUT}.
@@ -158,9 +158,9 @@ handle_event(new_data, connected, #state{
         terminal = Terminal,
         max_points = Points} = State) ->
   [{Recipient, DataSet} | _] = hooks:run({Recipient, get}, [replica, data, {ServerID, Terminal, Points}]),
-  debug("data set is ~w", [DataSet]),
+  '_debug'("data set is ~w", [DataSet]),
   {DataIDs, Data} = filter_data(DataSet, Proto),
-  debug("data ids ~w", [DataIDs]),
+  '_debug'("data ids ~w", [DataIDs]),
   Packet = Proto:prepare(Terminal, Data),
   connected({send, DataIDs, Packet}, State);
 handle_event(new_data, StateName, State) ->
@@ -198,9 +198,9 @@ handle_event(stop, _StateName, State) ->
 %%                   {stop, Reason, NewState}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(info, StateName, State) ->
-  alert("state name: ~w~n", [StateName]),
-  alert("state: ~p~n", [State]),
+handle_info('_info', StateName, State) ->
+  '_alert'("state name: ~w~n", [StateName]),
+  '_alert'("state: ~p~n", [State]),
   {next_state, StateName, State};
 handle_info(exit, _StateName, State) ->
   {stop, normal, State};
@@ -244,7 +244,7 @@ handle_info({tcp, Socket, Answer}, waiting_answer, #state{
 terminate(_Reason, _StateName, #state{socket = undefined}) ->
   ok;
 terminate(_Reason, _StateName, #state{socket = Socket}) ->
-  debug("terminating, socket is ~w", [Socket]),
+  '_debug'("terminating, socket is ~w", [Socket]),
   gen_tcp:close(Socket),
   ok.
 
@@ -283,10 +283,10 @@ auth(<<>>, State) ->
   {next_state, connected, State, ?TIMEOUT};
 auth(Data, #state{socket = Socket} = State) ->
   inet:setopts(Socket, [{active, false}]),
-  debug("send auth data ~w", [Data]),
+  '_debug'("send auth data ~w", [Data]),
   ok = gen_tcp:send(Socket, Data),
   {ok, Answer} = gen_tcp:recv(Socket, 0, ?TIMEOUT),
-  debug("auth recv: ~w", [Answer]),
+  '_debug'("auth recv: ~w", [Answer]),
   inet:setopts(Socket, [{active, true}]),
   new_data(self()),
   {next_state, connected, State, ?TIMEOUT}.

@@ -54,7 +54,7 @@ check_undelivered(Pid) ->
 %% @doc
 %% Starts the server
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @spec start_link() -> {ok, Pid} | ignore | {'_err'or, Error}
 %% @end
 %%--------------------------------------------------------------------
 start_link(Handler, ServerID, ServerProto) ->
@@ -76,17 +76,17 @@ start_link(Handler, ServerID, ServerProto) ->
 %% @end
 %%--------------------------------------------------------------------
 init({Recipient, ServerID, ServerProto}) ->
-  trace("init: recipient ~w, server id ~w, server protocol ~w", [Recipient, ServerID, ServerProto]),
+  '_trace'("init: recipient ~w, server id ~w, server protocol ~w", [Recipient, ServerID, ServerProto]),
   process_flag(trap_exit, true),
   [{Recipient, [Params]} | _] = hooks:run({Recipient, get}, [replica, server_info, ServerID]),
-  debug("server options ~w", [Params]),
+  '_debug'("server options ~w", [Params]),
   ServerHost = binary_to_list(proplists:get_value(hostname, Params)),
   ServerPort = proplists:get_value(port, Params),
   MaxPoints = min(proplists:get_value(max_points, Params, 1), ServerProto:max_points()),
   RetryInterval = round(misc:interval2seconds(proplists:get_value(retry_interval, Params)) * 1000),
   MaxConnections = proplists:get_value(max_connections, Params, infinity),
   Type = proplists:get_value(connection_type, Params, soft),
-  debug("server: ~w:~w, max point: ~w, max connections ~w, type ~w, retry interval ~w",
+  '_debug'("server: ~w:~w, max point: ~w, max connections ~w, type ~w, retry interval ~w",
         [ServerHost, ServerPort, MaxPoints, MaxConnections, Type, RetryInterval]),
   ETS = ets:new(?MODULE, [set, public]),
   timer:send_interval(RetryInterval, force_connect),
@@ -120,12 +120,12 @@ handle_call(get_terminal, {From, _}, #state{
         connected = Connected,
         waiting = Waiting,
         ets = ETS} = State) when Waiting > 0 ->
-  trace("getting terminal for ~w", [From]),
+  '_trace'("getting terminal for ~w", [From]),
   {[[Terminal]], _} = ets:match(ETS, {'$1', waiting}, 1),
   ets:delete(ETS, Terminal),
   ets:insert(ETS, {From, {Terminal, active}}),
   connect(),
-  debug("connected/waiting: ~w/~w", [Connected + 1, Waiting - 1]),
+  '_debug'("connected/waiting: ~w/~w", [Connected + 1, Waiting - 1]),
   {reply, {ok, Terminal}, State#state{
       status = connected,
       connected = Connected + 1,
@@ -133,10 +133,10 @@ handle_call(get_terminal, {From, _}, #state{
 handle_call(get_terminal, {From, _}, #state{
         waiting = 0,
         ets = ETS} = State) ->
-  err("getting terminal for ~w when waiting=0, ets is ~w", [From, ets:match(ETS, '$1')]),
+  '_err'("getting terminal for ~w when waiting=0, ets is ~w", [From, ets:match(ETS, '$1')]),
   {reply, ok, State};
 handle_call(Request, From, State) ->
-  crit("unhandled request ~w from ~w when ~w", [Request, From, State]),
+  '_crit'("unhandled request ~w from ~w when ~w", [Request, From, State]),
   {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -150,13 +150,13 @@ handle_call(Request, From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({new_data, Terminal}, #state{ets = ETS} = State) ->
-  trace("new data for terminal ~w", [Terminal]),
+  '_trace'("new data for terminal ~w", [Terminal]),
   NewState = case deliver(ETS, Terminal) of
     undefined ->
-      trace("adding terminal ~w", [Terminal]),
+      '_trace'("adding terminal ~w", [Terminal]),
       add_terminal(Terminal, State);
     {ok, Pid} ->
-      debug("notice to deliver ~w about new data", [Pid]),
+      '_debug'("'_notice' to deliver ~w about new data", [Pid]),
       replica_deliver:new_data(Pid),
       State
   end,
@@ -167,13 +167,13 @@ handle_cast({no_data, Pid}, #state{
         connected = Connected,
         max_connections = MaxConnections} = State)
     when (Waiting + Connected > MaxConnections) ->
-  trace("no data for ~w", [Pid]),
-  debug("stopping ~w", [Pid]),
+  '_trace'("no data for ~w", [Pid]),
+  '_debug'("stopping ~w", [Pid]),
   replica_deliver:stop(Pid),
   {noreply, State};
 handle_cast({no_data, Pid}, #state{
         ets = ETS} = State) ->
-  trace("no data for ~w", [Pid]),
+  '_trace'("no data for ~w", [Pid]),
   [[Terminal]] = ets:match(ETS, {Pid, {'$1', '_'}}),
   ets:insert(ETS, {Pid, {Terminal, no_data}}),
   {noreply, State};
@@ -196,7 +196,7 @@ handle_cast(force_connect, #state{
         ets = ETS} = State)
     when (Waiting > 0) ->
   Connecting = ets:select_count(ETS, [{{'$1',connecting},[],[true]}]),
-  debug("connecting/waiting ~w/~w", [Connecting, Waiting]),
+  '_debug'("connecting/waiting ~w/~w", [Connecting, Waiting]),
   if
     Waiting > Connecting ->
       {ok, Pid} = replica_deliver:start_link(
@@ -206,9 +206,9 @@ handle_cast(force_connect, #state{
           ServerHost,
           ServerPort,
           MaxPoints),
-      debug("new deliver ~w", [Pid]),
+      '_debug'("new deliver ~w", [Pid]),
       ets:insert(ETS, {Pid, connecting});
-    true -> debug("waiting <= connecting, no new connection")
+    true -> '_debug'("waiting <= connecting, no new connection")
   end,
   {noreply, State#state{status = connecting}};
 handle_cast(force_connect, State) ->
@@ -242,7 +242,7 @@ handle_cast(check_undelivered, State) ->
   {noreply, State};
 
 handle_cast(Msg, State) ->
-  crit("unhandled cast msg ~w when ~w", [Msg, State]),
+  '_crit'("unhandled cast msg ~w when ~w", [Msg, State]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -259,7 +259,7 @@ handle_info({'EXIT', Pid, normal}, #state{
         status = Status,
         ets = ETS,
         connected = Connected} = State) ->
-  trace("deliver exited"),
+  '_trace'("deliver exited"),
   {Add, NewStatus} = case ets:match(ETS, {Pid, '$1'}, 1) of
     {[[connecting]], _}  ->
       if
@@ -267,8 +267,8 @@ handle_info({'EXIT', Pid, normal}, #state{
         true -> {0, Status}
       end;
     '$end_of_table'     ->
-      err("unregistered pid ~w", [Pid]),
-      debug("ets: ~w", [ets:match(ETS, '$1')]),
+      '_err'("unregistered pid ~w", [Pid]),
+      '_debug'("ets: ~w", [ets:match(ETS, '$1')]),
       {0, Status};
     _Else               -> {1, Status}
   end,
@@ -282,7 +282,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
 handle_info(force_connect, State) ->
   handle_cast(force_connect, State);
 handle_info(Info, State) ->
-  crit("unhandled info msg ~w when ~w", [Info, State]),
+  '_crit'("unhandled '_info' msg ~w when ~w", [Info, State]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -314,7 +314,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 deliver(ETS, Terminal) ->
-  trace("getting deliver for terminal ~w", [Terminal]),
+  '_trace'("getting deliver for terminal ~w", [Terminal]),
   case ets:match(ETS, {'$1', {Terminal, '_'}}) of
     [] -> undefined;
     [[Pid]] -> {ok, Pid}
@@ -345,7 +345,7 @@ add_terminal1(Terminal, #state{ets = ETS}) ->
   case ets:match(ETS, {Terminal, '_'}, 1) of
     '$end_of_table' ->
       connect(),
-      debug("adding terminal ~w", [Terminal]),
+      '_debug'("adding terminal ~w", [Terminal]),
       ets:insert(ETS, {Terminal, waiting}),
       1;
     _ -> 0
@@ -359,7 +359,7 @@ handle_issue(Reason, #state{
                         server_port = ServerPort,
                         server_protocol = ServerProto,
                         connected = 0}) ->
-  warning("issue while delivering to ~w: ~w", [{ServerId, ServerHost, ServerPort, ServerProto},
+  '_warning'("issue while delivering to ~w: ~w", [{ServerId, ServerHost, ServerPort, ServerProto},
                                                Reason]),
   issue;
 handle_issue(Reason, #state{
@@ -368,5 +368,5 @@ handle_issue(Reason, #state{
 				server_port = ServerPort,
 				server_protocol = ServerProto,
 				status = Status}) ->
-  info("server ~w issue ~w", [{ServerId, ServerHost, ServerPort, ServerProto},Reason]),
+  '_info'("server ~w issue ~w", [{ServerId, ServerHost, ServerPort, ServerProto},Reason]),
   Status.
