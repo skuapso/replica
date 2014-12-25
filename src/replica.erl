@@ -9,16 +9,26 @@
 -export([new_data/6]).
 
 %% API
--export([start/0, start/2, stop/1]).
+-export([behaviour_info/1]).
+-export([start/0]).
+-export([start/2]).
+-export([stop/1]).
 -export([start_link/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
 -include_lib("logger/include/log.hrl").
+
 %%%===================================================================
 %%% API functions
 %%%===================================================================
+behaviour_info(callbacks) ->
+  [{auth, 1},
+   {pack, 1},
+   {max_points, 0},
+   {prepare, 2}].
+
 start() ->
   application:start(?MODULE).
 
@@ -29,17 +39,20 @@ stop(_) ->
   ok.
 
 get_servers(_Pid, Terminal, Timeout) ->
-  Servers = hooks:run(get, [?MODULE, servers, Terminal]),
+  Servers = hooks:run(get, [?MODULE, servers, Terminal], Timeout),
   '_debug'("servers: ~w", [Servers]),
-  Pids = lists:flatten(lists:map(
-        fun({ReplicaClient, ServerList}) ->
-            lists:map(
-              fun([ServerInfo, ServerProto]) ->
-                  {ok, Pid} =replica_repacker:start_link(Terminal, ServerInfo, ServerProto, Timeout),
-                  {ReplicaClient, Pid}
-              end, ServerList)
-        end, Servers)),
-  hooks:set(replica_servers, Pids),
+  ServersList = lists:map(
+                  fun({Recipient, SList}) ->
+                      lists:map(
+                        fun([SId, SProto]) ->
+                            {Recipient, SId, SProto}
+                        end,
+                        SList
+                       )
+                  end,
+                  Servers
+                 ),
+  hooks:set({?MODULE, servers}, lists:flatten(ServersList)),
   ok.
 
 repack_packet(_Pid, _Terminal, #{type := Type}, _Timeout)
@@ -47,19 +60,23 @@ repack_packet(_Pid, _Terminal, #{type := Type}, _Timeout)
     ->
   ok;
 repack_packet(_Pid, Terminal, Packet, Timeout) ->
-  Pids = case hooks:get(replica_servers) of
+  List = case hooks:get({replica, servers}) of
     undefined -> [];
-    List -> List
+    L -> L
   end,
-  '_debug'("servers: ~w", [Pids]),
+  '_debug'("servers: ~w", [List]),
   lists:map(
-    fun({ReplicaClient, RPid}) ->
-        {ok, {ServerID,
-              ServerProto,
-              _RawRepackedData} = Data} = replica_repacker:repack(RPid, Packet, Timeout),
-        hooks:run({ReplicaClient, set}, [?MODULE, data, Data]),
-        hooks:run({?MODULE, new_data}, [ReplicaClient, ServerID, ServerProto, Terminal])
-    end, Pids),
+    fun({Recipient, SId, SProto}) ->
+        case catch repack(Terminal, Packet, SProto) of
+          {'EXIT', Reason} ->
+            '_info'("failed repack ~p", [{Terminal, SProto, Packet, Reason}]);
+          {ok, BinData} ->
+            hooks:run({Recipient, set}, [?MODULE, data, {SId, SProto, BinData}], Timeout),
+            hooks:run({?MODULE, new_data}, [Recipient, SId, SProto, Terminal])
+        end
+    end,
+    List
+   ),
   ok.
 
 new_data(Pid, Recipient, ServerID, ServerProto, Terminal, Timeout) when is_binary(ServerProto) ->
@@ -138,3 +155,17 @@ manager_spec(Handler, ServerID, ServerProto) ->
     worker,
     [replica_manager]
   }.
+
+repack(Terminal, Packet, SProto) ->
+  repack(Terminal, Packet, SProto, []).
+
+repack({TProto, _TUin}, #{raw := Raw}, SProto, Filter)
+  when (TProto =:= SProto)
+       andalso (Filter =:= [])
+       ->
+  {ok, Raw};
+repack({_TProto, _TUin} = _Terminal, Packet, SProto, Filter) ->
+  SProto:pack(filter(Packet, Filter)).
+
+filter(Packet, []) ->
+  Packet.
