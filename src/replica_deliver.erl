@@ -103,7 +103,11 @@ disconnected(connect, #state{
   hooks:run(connection_accepted, [Proto, Socket]),
   hooks:final(connection_closed),
   {ok, Terminal} = replica_manager:get_terminal(Manager),
-  auth(Proto:auth(Terminal), S#state{
+  AuthData = case catch Proto:auth(Terminal) of
+               {'EXIT', _Reason} -> <<>>;
+               Data -> Data
+             end,
+  auth(AuthData, S#state{
         server = ServerId,
         terminal = Terminal,
         socket = Socket}).
@@ -114,7 +118,7 @@ connected({send, [], <<>>}, #state{manager = Manager} = State) ->
   replica_manager:no_data(Manager),
   {next_state, connected, State, ?TIMEOUT};
 connected({send, DataID, Data}, #state{socket = Socket} = S) ->
-  '_debug'("sending ~w", [Data]),
+  '_debug'("sending ~w", [{DataID, Data}]),
   gen_tcp:send(Socket, Data),
   Timer = gen_fsm:send_event_after(?TIMEOUT, timeout),
   {next_state, waiting_answer, S#state{data_id = DataID, timer = Timer}, ?TIMEOUT}.
@@ -161,8 +165,11 @@ handle_event(new_data, connected, #state{
   '_debug'("data set is ~w", [DataSet]),
   {DataIDs, Data} = filter_data(DataSet, Proto),
   '_debug'("data ids ~w", [DataIDs]),
-  Packet = Proto:prepare(Terminal, Data),
-  connected({send, DataIDs, Packet}, State);
+  Packet = case catch Proto:prepare(Terminal, Data) of
+             {'EXIT', _Reason} -> Data;
+             Data1 -> Data1
+           end,
+  connected({send, DataIDs, iolist_to_binary(Packet)}, State);
 handle_event(new_data, StateName, State) ->
   {next_state, StateName, State, ?TIMEOUT};
 handle_event(stop, _StateName, State) ->
