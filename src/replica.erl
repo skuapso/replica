@@ -4,7 +4,7 @@
 -behaviour(supervisor).
 
 %% hooks
--export([get_servers/3]).
+-export([get_servers/4]).
 -export([repack_packet/4]).
 -export([new_data/6]).
 
@@ -38,7 +38,7 @@ start(_Type, Args) ->
 stop(_) ->
   ok.
 
-get_servers(_Pid, Terminal, Timeout) ->
+get_servers(_Pid, Terminal, _Socket, Timeout) ->
   Servers = hooks:run(get, [?MODULE, servers, Terminal], Timeout),
   '_debug'("servers: ~w", [Servers]),
   ServersList = lists:map(
@@ -123,8 +123,8 @@ init(Args) ->
   '_trace'("starting"),
   Weight = misc:get_env(?MODULE, weight, Args),
   CronTimeout = misc:get_env(?MODULE, cron_timeout, Args) * 1000,
-  hooks:install(terminal_uin, Weight, {?MODULE, get_servers}),
-  hooks:install(terminal_packet, Weight, {?MODULE, repack_packet}),
+  hooks:install({terminal, connected}, Weight, {?MODULE, get_servers}),
+  hooks:install({terminal, packet}, Weight, {?MODULE, repack_packet}),
   hooks:install({?MODULE, new_data}, Weight, {?MODULE, new_data}),
   {
     ok,

@@ -100,9 +100,10 @@ disconnected(connect, #state{
         protocol = Proto,
         server = {ServerId, ServerHost, ServerPort}} = S) ->
   {ok, Socket} = gen_tcp:connect(ServerHost, ServerPort, ?TCP_OPTIONS),
-  hooks:run(connection_accepted, [Proto, Socket]),
-  hooks:final(connection_closed),
   {ok, Terminal} = replica_manager:get_terminal(Manager),
+  '_debug'("terminal: ~p", [Terminal]),
+  hooks:final({replica, disconnected}),
+  hooks:run({replica, connected}, [Terminal, Socket]),
   AuthData = case catch Proto:auth(Terminal) of
                {'EXIT', _Reason} -> <<>>;
                Data -> Data
